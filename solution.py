@@ -7,6 +7,9 @@ import select
 import binascii
 # Should use stdev
 
+from statistics import stdev
+from statistics import mean
+
 ICMP_ECHO_REQUEST = 8
 
 
@@ -50,8 +53,13 @@ def receiveOnePing(mySocket, ID, timeout, destAddr):
         # Fill in start
 
         # Fetch the ICMP header from the IP packet
+        (response_type, response_code, response_checksum, response_id, response_sequence) = struct.unpack('bbHHh', recPacket[20:28])
+        if response_type != ICMP_ECHO_REQUEST and response_id == ID:
+            timeSent = struct.unpack("d", recPacket[28:36])[0]
+            return timeReceived - timeSent
 
         # Fill in end
+
         timeLeft = timeLeft - howLongInSelect
         if timeLeft <= 0:
             return "Request timed out."
@@ -102,18 +110,48 @@ def doOnePing(destAddr, timeout):
 
 def ping(host, timeout=1):
     # timeout=1 means: If one second goes by without a reply from the server,  	# the client assumes that either the client's ping or the server's pong is lost
-    dest = gethostbyname(host)
-    print("Pinging " + dest + " using Python:")
-    print("")
+
+    packet_min = sys.maxsize
+    packet_max = 0
+    delay_list = []
+
+    try:
+        dest = gethostbyname(host)
+    except:
+        vars = ['0','0.0','0','0.0']
+        
+        # print(vars)
+
+        return vars
+
+    # print("Pinging " + dest + " using Python:")
+    # print("")
     # Calculate vars values and return them
     #  vars = [str(round(packet_min, 2)), str(round(packet_avg, 2)), str(round(packet_max, 2)),str(round(stdev(stdev_var), 2))]
     # Send ping requests to a server separated by approximately one second
     for i in range(0,4):
-        delay = doOnePing(dest, timeout)
-        print(delay)
+        delay = 1000*doOnePing(dest, timeout)
+
+        delay_list.append(delay)
+
+        if delay < packet_min:
+            packet_min = delay
+
+        if delay > packet_max:
+            packet_max = delay
+
+        # print(delay)
+        # print("")
+
         time.sleep(1)  # one second
+
+    vars = [str(round(packet_min, 2)), str(round(mean(delay_list), 2)), str(round(packet_max, 2)), str(round(stdev(delay_list), 2))]
+
+    # print(vars)
+    # print("")
 
     return vars
 
 if __name__ == '__main__':
-    ping("google.co.il")
+    ping("google.com")
+    ping("no.no.e")
